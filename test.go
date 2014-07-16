@@ -16,20 +16,22 @@ import (
 	"sync"
 )
 
+var randData [67108864]byte // = 64 MiB
+var leng int
+
 func create(path string, size int) {
 	log.Println("Create: " + path)
 	handle, err := os.Create(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	rand.Seed(time.Now().UnixNano())
+	defer handle.Close()
 	buf := new(bytes.Buffer)
 	for i := 0; i < size; i++ {
 		r := rand.Uint32()
 		binary.Write(buf, binary.LittleEndian, r)
 		handle.Write(buf.Bytes())
 	}
-	handle.Close()
 	log.Println("Created: " + path)
 }
 
@@ -39,10 +41,17 @@ func read(wg sync.WaitGroup, path string, num int, blockSize int) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer handle.Close()
+	statHandle, err := handle.Stat()
+	if err != nil {
+		log.Fatal(err)
+	}
+	size := statHandle.Size()
+	
 	data := make([]byte, blockSize)
 	for i := 0; i < num; i++ {
-		// pos := rand.Int31n(len(handle)) TODO replace len(handle) with file length
-		_, err := handle.ReadAt(data, pos)
+		posFile := rand.Int63n(size - (int64)(blockSize + 20))
+		_, err := handle.ReadAt(data, posFile)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -51,15 +60,22 @@ func read(wg sync.WaitGroup, path string, num int, blockSize int) {
 
 func write(wg sync.WaitGroup, path string, num int, blockSize int) {
 	defer wg.Done()
-	handle, err := os.OpenFile(path, os.O_wronly, 0777) // TODO os.ModePerm
+	handle, err := os.OpenFile(path, os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer handle.Close()
+	statHandle, err := handle.Stat()
+	if err != nil {
+		log.Fatal(err)
+	}
+	size := statHandle.Size()
+	
 	data := make([]byte, blockSize)
 	for i := 0; i < num; i++ {
-		// TODO fill data with rand
-		// TODO pos
-		_, err := handle.WriteAt(data, pos)
+		posFile := rand.Int63n(size - (int64)(blockSize + 20))
+		posRand := rand.Intn(leng - blockSize)
+		_, err := handle.WriteAt(data[posRand:(posRand+blockSize)], posFile)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -67,6 +83,12 @@ func write(wg sync.WaitGroup, path string, num int, blockSize int) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+	leng := len(randData)
+	for i := 0; i < (leng / 8) - 1; i++ {
+		binary.PutVarint(randData[i*8:], rand.Int63())
+	}
+	
 	var wg sync.WaitGroup
 	
 	// param parsing
