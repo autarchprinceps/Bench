@@ -19,18 +19,46 @@ import (
 var randData [67108864]byte // = 64 MiB
 var leng int
 
-func create(path string, size int) {
+func getRandBlocks(blockCount int, blockSize int, result chan []byte, currentBlock chan int) {
+	for {
+		buf := new(bytes.Buffer)
+		for i := 0; i < blockSize; i++ {
+			r := rand.Uint32()
+			binary.Write(buf, binary.LittleEndian, r)
+		}
+		log.Print("[Miner]: Pre result send")
+		result <- buf.Bytes()
+		log.Print("[Miner]: Pre add count")
+		c := (<- currentBlock) + 1
+		currentBlock <- c
+		if c > blockCount {
+			return
+		}
+	}
+}
+
+func create(path string, blockCount int, blockSize int) {
 	log.Println("Create: " + path)
 	handle, err := os.Create(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer handle.Close()
-	buf := new(bytes.Buffer)
-	for i := 0; i < size; i++ {
-		r := rand.Uint32()
-		binary.Write(buf, binary.LittleEndian, r)
-		handle.Write(buf.Bytes())
+	log.Print("Pre create channels")
+	blocks := make(chan []byte, 32)
+	defer close(blocks)
+	log.Print("Blocks channel created")
+	currentBlock := make(chan int)
+	defer close(currentBlock)
+	log.Print("CurrentBlock channel created")
+	currentBlock <- 0
+	log.Print("Pre launch miners")
+	for i := 0; i < 8; i++ {
+		go getRandBlocks(blockCount, blockSize, blocks, currentBlock)
+	}
+	log.Print("Pre launch writer")
+	for j := 0; j < blockCount; j++ {
+		handle.Write(<-blocks)
 	}
 	log.Println("Created: " + path)
 }
@@ -120,7 +148,7 @@ func main() {
 	
 	// fileops
 	if size > 0 {
-		create(path, size)
+		create(path, size, blockSize)
 	}
 	wg.Add(readThr)
 	for i := 0; i < readThr; i++ {
