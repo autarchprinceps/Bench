@@ -22,13 +22,11 @@ var leng int
 func getRandBlocks(blockCount int, blockSize int, result chan []byte, currentBlock chan int) {
 	for {
 		buf := new(bytes.Buffer)
+		r := rand.Uint32()
 		for i := 0; i < blockSize; i++ {
-			r := rand.Uint32()
 			binary.Write(buf, binary.LittleEndian, r)
 		}
-		log.Print("[Miner]: Pre result send")
 		result <- buf.Bytes()
-		log.Print("[Miner]: Pre add count")
 		c := (<- currentBlock) + 1
 		currentBlock <- c
 		if c > blockCount {
@@ -45,16 +43,18 @@ func create(path string, blockCount int, blockSize int) {
 	}
 	defer handle.Close()
 	log.Print("Pre create channels")
-	blocks := make(chan []byte, 32)
+	blocks := make(chan []byte, 4000000000 / blockSize)
 	defer close(blocks)
-	log.Print("Blocks channel created")
 	currentBlock := make(chan int)
 	defer close(currentBlock)
-	log.Print("CurrentBlock channel created")
-	currentBlock <- 0
 	log.Print("Pre launch miners")
 	for i := 0; i < 8; i++ {
 		go getRandBlocks(blockCount, blockSize, blocks, currentBlock)
+	}
+	currentBlock <- 0
+	slp := time.Second
+	for len(blocks) > 200000000 / blockSize {
+		time.Sleep(slp)
 	}
 	log.Print("Pre launch writer")
 	for j := 0; j < blockCount; j++ {
@@ -63,7 +63,7 @@ func create(path string, blockCount int, blockSize int) {
 	log.Println("Created: " + path)
 }
 
-func read(wg sync.WaitGroup, path string, num int, blockSize int) {
+func read(wg *sync.WaitGroup, path string, num int, blockSize int) {
 	defer wg.Done()
 	handle, err := os.Open(path)
 	if err != nil {
@@ -86,7 +86,7 @@ func read(wg sync.WaitGroup, path string, num int, blockSize int) {
 	}
 }
 
-func write(wg sync.WaitGroup, path string, num int, blockSize int) {
+func write(wg *sync.WaitGroup, path string, num int, blockSize int) {
 	defer wg.Done()
 	handle, err := os.OpenFile(path, os.O_WRONLY, 0666)
 	if err != nil {
@@ -152,11 +152,11 @@ func main() {
 	}
 	wg.Add(readThr)
 	for i := 0; i < readThr; i++ {
-		go read(wg, path, readNum, blockSize)
+		go read(&wg, path, readNum, blockSize)
 	}
 	wg.Add(writeThr)
 	for i := 0; i < writeThr; i++ {
-		go write(wg, path, writeNum, blockSize)
+		go write(&wg, path, writeNum, blockSize)
 	}
 	wg.Wait()
 }
