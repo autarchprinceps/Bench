@@ -1,17 +1,11 @@
 package main
 
-/**
- * TODO
- * metrics
- */
-
 import (
 	"log"
 	"os"
 	"math/rand"
 	"time"
 	"encoding/binary"
-	"bytes"
 	"strconv"
 	"sync"
 )
@@ -19,46 +13,15 @@ import (
 var randData [67108864]byte // = 64 MiB
 var leng int
 
-func getRandBlocks(blockCount int, blockSize int, result chan []byte, currentBlock chan int) {
-	for {
-		buf := new(bytes.Buffer)
-		r := rand.Uint32()
-		for i := 0; i < blockSize; i++ {
-			binary.Write(buf, binary.LittleEndian, r)
-		}
-		result <- buf.Bytes()
-		c := (<- currentBlock) + 1
-		currentBlock <- c
-		if c > blockCount {
-			return
-		}
-	}
-}
-
-func create(path string, blockCount int, blockSize int) {
+func create(path string, blockCount int) {
 	log.Println("Create: " + path)
 	handle, err := os.Create(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer handle.Close()
-	log.Print("Pre create channels")
-	blocks := make(chan []byte, 4000000000 / blockSize)
-	defer close(blocks)
-	currentBlock := make(chan int)
-	defer close(currentBlock)
-	log.Print("Pre launch miners")
-	for i := 0; i < 8; i++ {
-		go getRandBlocks(blockCount, blockSize, blocks, currentBlock)
-	}
-	currentBlock <- 0
-	slp := time.Second
-	for len(blocks) > 200000000 / blockSize {
-		time.Sleep(slp)
-	}
-	log.Print("Pre launch writer")
 	for j := 0; j < blockCount; j++ {
-		handle.Write(<-blocks)
+		handle.Write(randData[0:])
 	}
 	log.Println("Created: " + path)
 }
@@ -112,7 +75,7 @@ func write(wg *sync.WaitGroup, path string, num int, blockSize int) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	leng := len(randData)
+	leng = len(randData)
 	for i := 0; i < (leng / 8) - 1; i++ {
 		binary.PutVarint(randData[i*8:], rand.Int63())
 	}
@@ -147,9 +110,11 @@ func main() {
 	path := os.Args[1]
 	
 	// fileops
+	preCreate := time.Now()
 	if size > 0 {
-		create(path, size, blockSize)
+		create(path, size)
 	}
+	preRDWR := time.Now()
 	wg.Add(readThr)
 	for i := 0; i < readThr; i++ {
 		go read(&wg, path, readNum, blockSize)
@@ -159,4 +124,9 @@ func main() {
 		go write(&wg, path, writeNum, blockSize)
 	}
 	wg.Wait()
+	post := time.Now()
+	
+	log.Print("Create start: ", preCreate)
+	log.Print("Read write start: ", preRDWR)
+	log.Print("End: ", post)
 }
