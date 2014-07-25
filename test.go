@@ -62,11 +62,10 @@ func write(wg *sync.WaitGroup, path string, num int, blockSize int) {
 	}
 	size := statHandle.Size()
 	
-	data := make([]byte, blockSize)
 	for i := 0; i < num; i++ {
 		posFile := rand.Int63n(size - (int64)(blockSize + 20))
 		posRand := rand.Intn(leng - blockSize)
-		_, err := handle.WriteAt(data[posRand:(posRand+blockSize)], posFile)
+		_, err := handle.WriteAt(randData[posRand:(posRand+blockSize)], posFile)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -110,10 +109,12 @@ func main() {
 	path := os.Args[1]
 	
 	// fileops
+	// log.Print("preCreate")
 	preCreate := time.Now()
 	if size > 0 {
 		create(path, size)
 	}
+	// log.Print("preRDWR")
 	preRDWR := time.Now()
 	wg.Add(readThr)
 	for i := 0; i < readThr; i++ {
@@ -123,10 +124,19 @@ func main() {
 	for i := 0; i < writeThr; i++ {
 		go write(&wg, path, writeNum, blockSize)
 	}
+	// log.Print("wait")
 	wg.Wait()
+	// log.Print("post")
 	post := time.Now()
 	
 	log.Print("Create start: ", preCreate)
 	log.Print("Read write start: ", preRDWR)
 	log.Print("End: ", post)
+	
+	log.Print("Creation rate [MiB/s]: ", (float64)(64000000000.0) * (float64)(size) / (float64)(preRDWR.Sub(preCreate).Nanoseconds()) ) // 64 MB * (Nanosec -> Sec)
+	readAmount := readThr * readNum * blockSize
+	log.Print("Read amount [MiB]: ", (float64)(readAmount) / (float64)(1024*1024))
+	writeAmount := writeThr * writeNum * blockSize
+	log.Print("Write amount [MiB]: ", (float64)(writeAmount) / (float64)(1024*1024))
+	log.Print("Edit rate [MiB/s]: ", (float64)(1024 * 1024 * 1000000000) * (float64)(readAmount + writeAmount) / (float64)(post.Sub(preRDWR).Nanoseconds()) )
 }
