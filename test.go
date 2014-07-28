@@ -129,14 +129,14 @@ func main() {
 	// log.Print("post")
 	post := time.Now()
 	
-	log.Print("Create start: ", preCreate)
-	log.Print("Read write start: ", preRDWR)
-	log.Print("End: ", post)
+	// log.Print("Create start: ", preCreate)
+	// log.Print("Read write start: ", preRDWR)
+	// log.Print("End: ", post)
 	
 	log.Print("Creation rate [MiB/s]: ", (float64)(64000000000.0) * (float64)(size) / (float64)(preRDWR.Sub(preCreate).Nanoseconds()) ) // 64 MB * (Nanosec -> Sec)
 	readAmount := readThr * readNum * blockSize
 	log.Print("Read amount [MiB]: ", (float64)(readAmount) / (float64)(1024*1024))
 	writeAmount := writeThr * writeNum * blockSize
 	log.Print("Write amount [MiB]: ", (float64)(writeAmount) / (float64)(1024*1024))
-	log.Print("Edit rate [MiB/s]: ", (float64)(1024 * 1024 * 1000000000) * (float64)(readAmount + writeAmount) / (float64)(post.Sub(preRDWR).Nanoseconds()) )
+	log.Print("Edit rate [MiB/s]: ", (float64)(1000000000) * (float64)(readAmount + writeAmount) / (float64)(post.Sub(preRDWR).Nanoseconds() * 1024 * 1024) )
 }
