@@ -109,12 +109,11 @@ func main() {
 	path := os.Args[1]
 	
 	// fileops
-	// log.Print("preCreate")
 	preCreate := time.Now()
 	if size > 0 {
 		create(path, size)
 	}
-	// log.Print("preRDWR")
+
 	preRDWR := time.Now()
 	wg.Add(readThr)
 	for i := 0; i < readThr; i++ {
@@ -124,14 +123,9 @@ func main() {
 	for i := 0; i < writeThr; i++ {
 		go write(&wg, path, writeNum, blockSize)
 	}
-	// log.Print("wait")
-	wg.Wait()
-	// log.Print("post")
-	post := time.Now()
 	
-	// log.Print("Create start: ", preCreate)
-	// log.Print("Read write start: ", preRDWR)
-	// log.Print("End: ", post)
+	wg.Wait()
+	post := time.Now()
 	
 	log.Print("Creation rate [MiB/s]: ", (float64)(64000000000.0) * (float64)(size) / (float64)(preRDWR.Sub(preCreate).Nanoseconds()) ) // 64 MB * (Nanosec -> Sec)
 	readAmount := readThr * readNum * blockSize
